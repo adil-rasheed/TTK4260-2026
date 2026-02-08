@@ -73,9 +73,11 @@ with st.sidebar:
     1. **Least Squares** - OLS & Optimization
     2. **Maximum Likelihood** - Parameter Estimation
     3. **MLR & Regularization** - Ridge, Lasso, ElasticNet
-    4. **Principal Component Analysis** - Dimensionality Reduction
-    5. **Principal Component Regression** - Multicollinearity Handling
-    6. **Performance Metrics** - Model Evaluation
+    4. **PCA Explorer** - Interactive PCA Concepts
+    5. **PCA Application** - McDonald's Menu Analysis
+    6. **PCR Interactive** - Multicollinearity Demo
+    7. **PCR Application** - Norwegian Energy Data
+    8. **Performance Metrics** - Model Evaluation
     """)
     
     st.markdown("---")

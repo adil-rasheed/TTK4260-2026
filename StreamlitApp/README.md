@@ -4,11 +4,11 @@ A comprehensive Streamlit web application for exploring machine learning algorit
 
 ## 🚀 Features
 
-- **6 Interactive Topics**: Least Squares, Maximum Likelihood, MLR & Regularization, PCA, PCR, Performance Metrics
+- **8 Interactive Topics**: Least Squares, Maximum Likelihood, MLR & Regularization, PCA Explorer, PCA Application (Real Data), PCR Interactive Demo, PCR Application (Real Data), Performance Metrics
 - **Real-time Visualizations**: 3D surfaces, contour plots, interactive parameter adjustment
 - **Model Comparisons**: Side-by-side algorithm evaluation
 - **Bootstrap Analysis**: Stability assessment and confidence intervals
-- **Custom Datasets**: Generate synthetic data or upload your own
+- **Real-World Datasets**: Norwegian energy data, McDonald's nutrition data
 
 ## 📋 Requirements
 
@@ -97,12 +97,14 @@ The app will open in your default browser at `http://localhost:8501`
 StreamlitApp/
 ├── app.py                          # Main application entry point
 ├── pages/                          # Individual topic pages
-│   ├── 01_PCR_Interactive.py      # Principal Component Regression
-│   ├── 02_PCA_Explorer.py         # Principal Component Analysis
+│   ├── 01_PCR_Interactive.py      # Principal Component Regression (demo)
+│   ├── 02_PCA_Explorer.py         # Principal Component Analysis (explorer)
 │   ├── 03_MLR_Regularization.py   # Multiple Linear Regression
 │   ├── 04_Least_Squares.py        # OLS and optimization
 │   ├── 05_Maximum_Likelihood.py   # MLE methods
-│   └── 06_Performance_Metrics.py  # Model evaluation
+│   ├── 06_Performance_Metrics.py  # Model evaluation
+│   ├── 07_PCR_Application.py      # PCR on Norwegian Energy Data
+│   └── 08_PCA_Application.py      # PCA on McDonald's Menu Data
 ├── utils/                          # Utility modules
 │   ├── data_generator.py          # Synthetic data generation
 │   ├── models.py                  # ML model implementations
@@ -110,7 +112,9 @@ StreamlitApp/
 │   └── metrics.py                 # Performance metrics
 ├── data/                           # Real datasets
 │   ├── CityTemp.xlsx
-│   └── macdonald.csv
+│   ├── macdonald.csv
+│   ├── X.txt                      # Norwegian weather data (predictors)
+│   └── Y.txt                      # Norwegian energy output (responses)
 ├── .streamlit/
 │   └── config.toml                # Streamlit configuration
 ├── requirements.txt                # Python dependencies
