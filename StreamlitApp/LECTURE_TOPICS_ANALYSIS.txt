@@ -1,0 +1,108 @@
+====================================================================================================
+COMPREHENSIVE LECTURE TOPICS ANALYSIS
+====================================================================================================
+
+
+====================================================================================================
+LEAST SQUARES
+File: LeastSquares/LSSlide.pdf
+Pages: 49
+====================================================================================================
+
+TOPICS FOUND IN SLIDES (11/11 concepts):
+  ✓ Gradient Descent
+  ✓ Normal Equations
+  ✓ Non-Linear
+  ✓ Weighted
+  ✓ Geometric Interpretation
+  ✓ Feature Engineering
+  ✓ Optimization
+  ✓ Cost Function
+  ✓ Brute Force
+  ✓ Scipy
+  ✓ Pitfalls
+
+====================================================================================================
+MAXIMUM LIKELIHOOD
+File: MaximumLikelihood/MLESlides.pdf
+Pages: 84
+====================================================================================================
+
+TOPICS FOUND IN SLIDES (15/16 concepts):
+  ✓ Likelihood
+  ✓ Log-Likelihood
+  ✓ Score Function
+  ✓ Normal Distribution
+  ✓ Binomial
+  ✓ Poisson
+  ✓ Exponential
+  ✓ Laplacian
+  ✓ Student-t
+  ✓ Censored Data
+  ✓ Confidence Intervals
+  ✓ Hypothesis Testing
+  ✓ Fisher Information
+  ✓ Bias
+  ✓ Variance
+
+NOT FOUND IN SLIDES (1 concepts):
+  ✗ Cramer-Rao
+
+====================================================================================================
+MULTIPLE LINEAR REGRESSION
+File: MultiPleLinearRegression/MLRSlide.pdf
+Pages: 44
+====================================================================================================
+
+TOPICS FOUND IN SLIDES (13/14 concepts):
+  ✓ Categorical Variables
+  ✓ Dummy Encoding
+  ✓ Regularization
+  ✓ L1
+  ✓ L2
+  ✓ L0
+  ✓ Ridge
+  ✓ Lasso
+  ✓ Feature Scaling
+  ✓ Correlated Predictors
+  ✓ Multicollinearity
+  ✓ Partial Effects
+  ✓ Holding Others Fixed
+
+NOT FOUND IN SLIDES (1 concepts):
+  ✗ ElasticNet
+
+====================================================================================================
+PRINCIPAL COMPONENT ANALYSIS
+File: PrincipalComponentAnalysis/PCASlides.pdf
+Pages: 126
+====================================================================================================
+
+TOPICS FOUND IN SLIDES (18/21 concepts):
+  ✓ Loadings
+  ✓ Scores
+  ✓ Eigenvalues
+  ✓ SVD
+  ✓ Variance Explained
+  ✓ Scree Plot
+  ✓ Biplot
+  ✓ Loading Plot
+  ✓ T2 Statistic
+  ✓ Q Statistic
+  ✓ Hotelling
+  ✓ SPE
+  ✓ Time Series
+  ✓ Process Monitoring
+  ✓ Moving Window
+  ✓ Batch Trajectories
+  ✓ Communalities
+  ✓ NIPALS
+
+NOT FOUND IN SLIDES (3 concepts):
+  ✗ Anomaly Detection
+  ✗ Correlation Circle
+  ✗ Eigenvectors
+
+====================================================================================================
+ANALYSIS COMPLETE
+====================================================================================================
