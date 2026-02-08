@@ -12,12 +12,33 @@ A comprehensive Streamlit web application for exploring machine learning algorit
 
 ## 📋 Requirements
 
-- Python 3.8+
-- See `requirements.txt` for package dependencies
+- Python 3.9+
+- See `pyproject.toml` or `requirements.txt` for package dependencies
 
 ## 🔧 Installation
 
-### Option 1: Local Installation
+### Option 1: Using UV (Recommended - Fast & Modern)
+
+[UV](https://github.com/astral-sh/uv) is a fast Python package installer and resolver.
+
+```bash
+# Install UV (if not already installed)
+# Windows (PowerShell):
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+# Mac/Linux:
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Navigate to the StreamlitApp folder
+cd StreamlitApp
+
+# Install dependencies (UV automatically creates/uses virtual environment)
+uv sync
+
+# Run the app
+uv run streamlit run app.py
+```
+
+### Option 2: Using pip
 
 ```bash
 # Clone or navigate to the StreamlitApp folder
@@ -36,18 +57,25 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Option 2: Using conda
+### Option 3: Using conda
 
 ```bash
-conda create -n ttk4260 python=3.10
+conda create -n ttk4260 python=3.11
 conda activate ttk4260
 pip install -r requirements.txt
 ```
 
 ## ▶️ Running the App
 
+### With UV (Recommended)
 ```bash
 # From the StreamlitApp directory
+uv run streamlit run app.py
+```
+
+### With pip/conda
+```bash
+# Make sure virtual environment is activated
 streamlit run app.py
 ```
 
