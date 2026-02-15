@@ -78,6 +78,7 @@ with st.sidebar:
     6. **PCR Interactive** - Multicollinearity Demo
     7. **PCR Application** - Norwegian Energy Data
     8. **Performance Metrics** - Model Evaluation
+    9. **ICA Pulse Detection** - Heart Rate from Video
     """)
     
     st.markdown("---")
