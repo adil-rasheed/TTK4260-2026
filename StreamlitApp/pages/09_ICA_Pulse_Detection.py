@@ -239,7 +239,8 @@ def detect_cameras(max_index: int = 8):
     import cv2
     cameras = []
     for idx in range(max_index):
-        cap = cv2.VideoCapture(idx)
+        # On Windows use DirectShow for more reliable webcam access
+        cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW) if os.name == 'nt' else cv2.VideoCapture(idx)
         if cap.isOpened():
             # Read one frame to check it really works
             ret, frame = cap.read()
@@ -264,7 +265,7 @@ def grab_preview_frame(camera_index: int):
     import cv2
     import time
 
-    cap = cv2.VideoCapture(camera_index)
+    cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW) if os.name == 'nt' else cv2.VideoCapture(camera_index)
     if not cap.isOpened():
         return None
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
@@ -302,7 +303,7 @@ def record_webcam_video(duration, fps_target, camera_index=0, live_placeholder=N
     import cv2
     import time
 
-    cap = cv2.VideoCapture(camera_index)
+    cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW) if os.name == 'nt' else cv2.VideoCapture(camera_index)
     if not cap.isOpened():
         return None, (f"Could not open camera index {camera_index}. "
                       "Check camera permissions or select a different camera.")
@@ -449,8 +450,11 @@ with st.sidebar:
         )
         selected_cam_idx = cam_options[selected_cam_label]
     else:
-        st.warning("No cameras detected.")
+        # No cameras found (common in VMs/remote sessions). Avoid NameError later
+        # by setting a safe default label/index and ask the user to upload instead.
+        st.warning("No cameras detected. You can still upload a pre-recorded video.")
         selected_cam_idx = 0
+        selected_cam_label = "No camera detected"
 
     if st.button("🔄 Re-detect cameras", use_container_width=True):
         st.session_state.pop('available_cameras', None)
@@ -531,57 +535,60 @@ with preview_col_cam:
     if st.button("🔄 Refresh Preview", use_container_width=False):
         st.session_state['_refresh_preview'] = True
 
-    # Always show a snapshot so the user can verify the right camera
-    preview_frame = grab_preview_frame(selected_cam_idx)
-    if preview_frame is not None:
-        # Run face detection on the preview frame and draw the box
-        if use_face_detection:
-            import cv2 as _cv2_preview
-            _gray_pv = _cv2_preview.cvtColor(
-                _cv2_preview.cvtColor(preview_frame, _cv2_preview.COLOR_RGB2BGR),
-                _cv2_preview.COLOR_BGR2GRAY
-            )
-            _cascade_pv = _cv2_preview.CascadeClassifier(
-                _cv2_preview.data.haarcascades + 'haarcascade_frontalface_default.xml'
-            )
-            _faces_pv = _cascade_pv.detectMultiScale(
-                _gray_pv, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60)
-            )
-            annotated_frame = preview_frame.copy()
-            if len(_faces_pv) > 0:
-                fx, fy, fw, fh = max(_faces_pv, key=lambda r: r[2] * r[3])
-                import cv2 as _drw
-                if forehead_only:
-                    _drw.rectangle(annotated_frame, (fx, fy),
-                                   (fx + fw, fy + int(fh * 0.4)),
-                                   (0, 255, 0), 2)
-                    _drw.putText(annotated_frame, 'Forehead ROI',
-                                 (fx, fy - 8), _drw.FONT_HERSHEY_SIMPLEX,
-                                 0.6, (0, 255, 0), 2)
+    if avail_cams:
+        # Always show a snapshot so the user can verify the right camera
+        preview_frame = grab_preview_frame(selected_cam_idx)
+        if preview_frame is not None:
+            # Run face detection on the preview frame and draw the box
+            if use_face_detection:
+                import cv2 as _cv2_preview
+                _gray_pv = _cv2_preview.cvtColor(
+                    _cv2_preview.cvtColor(preview_frame, _cv2_preview.COLOR_RGB2BGR),
+                    _cv2_preview.COLOR_BGR2GRAY
+                )
+                _cascade_pv = _cv2_preview.CascadeClassifier(
+                    _cv2_preview.data.haarcascades + 'haarcascade_frontalface_default.xml'
+                )
+                _faces_pv = _cascade_pv.detectMultiScale(
+                    _gray_pv, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60)
+                )
+                annotated_frame = preview_frame.copy()
+                if len(_faces_pv) > 0:
+                    fx, fy, fw, fh = max(_faces_pv, key=lambda r: r[2] * r[3])
+                    import cv2 as _drw
+                    if forehead_only:
+                        _drw.rectangle(annotated_frame, (fx, fy),
+                                       (fx + fw, fy + int(fh * 0.4)),
+                                       (0, 255, 0), 2)
+                        _drw.putText(annotated_frame, 'Forehead ROI',
+                                     (fx, fy - 8), _drw.FONT_HERSHEY_SIMPLEX,
+                                     0.6, (0, 255, 0), 2)
+                    else:
+                        margin_x = int(fw * 0.1)
+                        margin_y = int(fh * 0.1)
+                        _drw.rectangle(annotated_frame,
+                                       (fx + margin_x, fy + margin_y),
+                                       (fx + fw - margin_x, fy + fh - margin_y),
+                                       (0, 255, 0), 2)
+                        _drw.putText(annotated_frame, 'Face ROI',
+                                     (fx + margin_x, fy + margin_y - 8),
+                                     _drw.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                    st.image(annotated_frame,
+                             caption=f"✅ Face detected — {selected_cam_label}",
+                             use_container_width=True)
                 else:
-                    margin_x = int(fw * 0.1)
-                    margin_y = int(fh * 0.1)
-                    _drw.rectangle(annotated_frame,
-                                   (fx + margin_x, fy + margin_y),
-                                   (fx + fw - margin_x, fy + fh - margin_y),
-                                   (0, 255, 0), 2)
-                    _drw.putText(annotated_frame, 'Face ROI',
-                                 (fx + margin_x, fy + margin_y - 8),
-                                 _drw.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-                st.image(annotated_frame,
-                         caption=f"✅ Face detected — {selected_cam_label}",
-                         use_container_width=True)
+                    st.image(preview_frame,
+                             caption=f"⚠️ No face detected — {selected_cam_label}",
+                             use_container_width=True)
+                    st.warning("No face detected. Ensure your face is visible and well-lit.")
             else:
-                st.image(preview_frame,
-                         caption=f"⚠️ No face detected — {selected_cam_label}",
+                st.image(preview_frame, caption=f"Live snapshot from {selected_cam_label}",
                          use_container_width=True)
-                st.warning("No face detected. Ensure your face is visible and well-lit.")
         else:
-            st.image(preview_frame, caption=f"Live snapshot from {selected_cam_label}",
-                     use_container_width=True)
+            st.warning(f"Could not grab a frame from camera index {selected_cam_idx}. "
+                       "Try selecting a different camera in the sidebar.")
     else:
-        st.warning(f"Could not grab a frame from camera index {selected_cam_idx}. "
-                   "Try selecting a different camera in the sidebar.")
+        st.info("No local cameras are available in this environment. Upload a video instead.")
 
 with preview_col_info:
     st.markdown("### ℹ️ Camera Tips")
