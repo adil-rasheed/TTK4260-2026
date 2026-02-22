@@ -36,6 +36,12 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build]
+# This is a Streamlit app, not a distributable package.
+# Tell hatchling not to look for a package directory.
+[tool.hatch.build.targets.wheel]
+packages = ["pages", "utils"]
+
 [tool.uv]
 dev-dependencies = [
     "jupyter>=1.0.0",
