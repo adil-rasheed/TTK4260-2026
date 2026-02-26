@@ -318,16 +318,21 @@ The recovered sources have near-zero cross-correlation, confirming statistical i
 
     else:
         # Real audio files available
-        import soundfile as sf
+        from scipy.io import wavfile as scipy_wav
 
         @st.cache_data
         def load_audio_mixtures():
             mixtures = []
             sample_rate = None
             for f in mixture_files:
-                audio, sr = sf.read(str(f))
+                sr, audio = scipy_wav.read(str(f))
+                audio = audio.astype(np.float64)
                 if audio.ndim > 1:
                     audio = audio[:, 0]
+                # Normalize to [-1, 1]
+                max_val = np.max(np.abs(audio))
+                if max_val > 0:
+                    audio = audio / max_val
                 mixtures.append(audio)
                 sample_rate = sr
             min_len = min(len(m) for m in mixtures)
