@@ -79,6 +79,14 @@ with st.sidebar:
     7. **PCR Application** - Norwegian Energy Data
     8. **Performance Metrics** - Model Evaluation
     9. **ICA Pulse Detection** - Heart Rate from Video
+    10. **PLSR Application** - Partial Least Squares
+    11. **MLR/PCR/PLSR Comparison**
+    
+    **🔑 ICA Deep Dive:**
+    12. **ICA Prerequisite** - CLT & Independence
+    13. **ICA By Hand** - Step-by-Step Tutorial
+    14. **ICA Geometric** - 3-Step Visualization
+    15. **ICA Applications** - Image & Audio Separation
     """)
     
     st.markdown("---")
