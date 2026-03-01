@@ -87,6 +87,9 @@ with st.sidebar:
     13. **ICA By Hand** - Step-by-Step Tutorial
     14. **ICA Geometric** - 3-Step Visualization
     15. **ICA Applications** - Image & Audio Separation
+    
+    **🗺️ Nonlinear Embeddings:**
+    16. **t-SNE Explorer** - Interactive t-SNE Teaching Tool
     """)
     
     st.markdown("---")
