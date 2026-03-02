@@ -2,7 +2,9 @@
 t-SNE Interactive Explorer
 ===========================
 Comprehensive interactive t-SNE teaching tool following the lecture structure.
-Covers motivation, algorithm internals, pitfalls, validation, and method comparison.
+Covers motivation, terminologies, algorithm internals, perplexity, optimization,
+preprocessing, pitfalls, validation, method comparison, MNIST application,
+full dashboard, and self-check quiz.
 
 Based on tSNE_Comprehensive_Lecture.ipynb
 """
@@ -207,6 +209,22 @@ def compute_Q_matrix(Y):
     return np.maximum(Q, 1e-12)
 
 
+def compute_forces(P, Y):
+    """Compute the t-SNE gradient force vectors."""
+    Q = compute_Q_matrix(Y)
+    dist2 = pairwise_distances(Y, squared=True)
+    np.fill_diagonal(dist2, np.inf)
+    w = 1.0 / (1.0 + dist2)
+    w[~np.isfinite(w)] = 0.0
+
+    F = np.zeros_like(Y)
+    for i in range(Y.shape[0]):
+        diff = Y[i] - Y
+        coeff = (P[i] - Q[i]) * w[i]
+        F[i] = 4.0 * np.sum(coeff[:, None] * diff, axis=0)
+    return F
+
+
 def knn_jaccard_overlap(X_high, Y_low, k=15):
     """Compute per-point Jaccard overlap of k-NN sets."""
     nn_high = NearestNeighbors(n_neighbors=k).fit(X_high)
@@ -224,18 +242,22 @@ def knn_jaccard_overlap(X_high, Y_low, k=15):
 # ═══════════════════════════════════════════════════
 # TABS
 # ═══════════════════════════════════════════════════
-tab_motivation, tab_algorithm, tab_perplexity, tab_optimization, tab_pitfalls, \
-    tab_validation, tab_comparison, tab_mnist, tab_dashboard = st.tabs([
-        "🎯 Motivation",
-        "🧮 Algorithm",
-        "🎛️ Perplexity",
-        "⚡ Optimization",
-        "⚠️ Pitfalls",
-        "✅ Validation",
-        "🔀 Comparison",
-        "🔢 MNIST",
-        "🎮 Dashboard",
-    ])
+(tab_motivation, tab_terminologies, tab_algorithm, tab_perplexity,
+ tab_optimization, tab_preprocessing, tab_pitfalls,
+ tab_validation, tab_comparison, tab_mnist, tab_dashboard, tab_quiz) = st.tabs([
+    "🎯 Motivation",
+    "📚 Terminologies",
+    "🧮 Algorithm",
+    "🎛️ Perplexity",
+    "⚡ Optimization",
+    "🔧 Preprocessing",
+    "⚠️ Pitfalls",
+    "✅ Validation",
+    "🔀 Comparison",
+    "🔢 MNIST",
+    "🎮 Dashboard",
+    "🧪 Quiz",
+])
 
 # ══════════════════════════════════════════════════════
 # TAB 1: MOTIVATION
@@ -250,6 +272,20 @@ with tab_motivation:
     <b>The Goal:</b> Find a nonlinear map that preserves <b>who is near whom</b> — local neighborhood structure.
     </div>
     """, unsafe_allow_html=True)
+
+    st.markdown("""
+    **What we already know from earlier lectures:**
+
+    | Method | Type | Preserves |
+    |--------|------|----------|
+    | MLR | Supervised, linear | Prediction accuracy |
+    | PCA / PCR | Unsupervised, linear | Global variance |
+    | ICA | Unsupervised, linear | Statistical independence |
+    | PLSR | Supervised, linear | Covariance with response |
+
+    **Today's challenge:** Real datasets often live on curved manifolds.
+    Linear methods squash and mix local neighborhoods when projecting.
+    """)
 
     col_left, col_right = st.columns([1, 3])
     with col_left:
@@ -345,7 +381,54 @@ with tab_motivation:
 
 
 # ══════════════════════════════════════════════════════
-# TAB 2: ALGORITHM
+# TAB 2: TERMINOLOGIES
+# ══════════════════════════════════════════════════════
+with tab_terminologies:
+    st.markdown("## Key Terminologies")
+
+    st.markdown("### 2a. Neighborhood")
+    st.markdown("""
+    <div class="info-panel">
+    The subset of points that are "locally" similar to a given point $x_i$.
+    Linear methods (PCA, ICA) prioritize global variance/independence.
+    In complex data, <b>local topology</b> (who is next to whom) is often more informative.
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("### 2b. Embedding")
+    st.markdown(r"""
+    Given $\{x_i\}_{i=1}^n$ with $x_i \in \mathbb{R}^D$, find $\{y_i\}_{i=1}^n$ with
+    $y_i \in \mathbb{R}^d$ (typically $d = 2$) such that **neighbors in high-D stay neighbors in low-D**.
+    """)
+
+    st.markdown("### 2c. The Crowding Problem")
+    st.markdown("""
+    <div class="warn-panel">
+    When reducing dimensions (e.g., from high-D to 2D), there is not enough "room" to faithfully place
+    all moderately-close neighbors. In high-D, volume grows as $r^D$; in 2D, area grows only as $\\pi r^2$.
+    Points that were comfortably spread on a high-D shell get <b>crushed</b> together
+    in low-D — unless we use a heavy-tailed kernel (the t-SNE solution).
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("### 2d. Stochastic")
+    st.markdown(r"""
+    The embedding is found through a procedure that includes **randomness**:
+    - **Initialization:** $\{y_i\}$ start randomly (or from PCA)
+    - **Optimization:** iterative gradient descent with momentum
+    - **Probabilities:** neighborhoods are *soft* probabilities ($p_{j|i}$, $q_{ij}$), not hard assignments
+    """)
+
+    st.markdown("""
+    <div class="success-panel">
+    <b>What stays the same:</b> The objective $\\text{KL}(P \\| Q)$ is fixed. Different runs may produce
+    rotated/reflected solutions, but local structure should be consistent.
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ══════════════════════════════════════════════════════
+# TAB 3: ALGORITHM
 # ══════════════════════════════════════════════════════
 with tab_algorithm:
     st.markdown("## The t-SNE Algorithm: Three Steps")
@@ -372,6 +455,13 @@ with tab_algorithm:
         <b>Symmetrization:</b> $p_{ij} = (p_{j|i} + p_{i|j}) / 2n$
         </div>
         """, unsafe_allow_html=True)
+
+        st.markdown("""
+        - **Numerator:** Gaussian similarity between $x_i$ and $x_j$
+        - **Denominator:** Normalizes so $\\sum_j p_{j|i} = 1$
+        - **$\\sigma_i$:** Adapts to local density (small in dense regions, large in sparse)
+        - **Symmetrization** ensures outliers are not completely ignored
+        """)
 
         st.markdown("### P Matrix Visualization")
         col_p1, col_p2 = st.columns([1, 3])
@@ -431,7 +521,13 @@ with tab_algorithm:
                                          fill="tozeroy",
                                          fillcolor="rgba(46,134,193,0.15)",
                                          mode="none", name="Heavy tail region"))
-        fig_kernel.update_layout(title="Gaussian vs Student-t Kernel",
+        fig_kernel.add_annotation(x=3.5, y=0.08, text="Heavy Tail<br>Does not vanish!",
+                                   showarrow=True, arrowhead=2, ax=-50, ay=-40,
+                                   font=dict(size=12, color=COLORS["B"]))
+        fig_kernel.add_annotation(x=1.5, y=0.01, text="Gaussian<br>vanishes quickly",
+                                   showarrow=True, arrowhead=2, ax=40, ay=-30,
+                                   font=dict(size=12, color=COLORS["A"]))
+        fig_kernel.update_layout(title="Why Student-t? Heavy Tails Solve the Crowding Problem",
                                   xaxis_title="Distance r",
                                   yaxis_title="Unnormalized Similarity",
                                   height=450, template="plotly_white")
@@ -462,7 +558,7 @@ with tab_algorithm:
             fig_cr.update_layout(height=400, template="plotly_white")
             st.plotly_chart(fig_cr, use_container_width=True)
 
-    else:  # Step 3: KL
+    else:  # Step 3: KL Divergence & Forces
         st.markdown("""
         <div class="math-panel">
         <b>Cost function:</b>
@@ -472,6 +568,11 @@ with tab_algorithm:
           (p_{ij} - q_{ij}) \\cdot \\frac{y_i - y_j}{1 + \\|y_i - y_j\\|^2}$$
         </div>
         """, unsafe_allow_html=True)
+
+        st.markdown("""
+        - $p_{ij} > q_{ij}$: **attraction** (pull together) — true neighbors not close enough
+        - $p_{ij} < q_{ij}$: **repulsion** (push apart) — false neighbors too close
+        """)
 
         st.markdown("### KL Asymmetry")
         st.markdown("""
@@ -507,9 +608,52 @@ with tab_algorithm:
                 "It doesn't care if unrelated points end up close, but it *hates* "
                 "separating true neighbors.")
 
+        # Gradient Force Field Visualization
+        st.markdown("---")
+        st.markdown("### Gradient Force Field Visualization")
+        st.markdown("See the attraction/repulsion forces on a tiny system. "
+                     "Arrows show how each point would move in one gradient step.")
+
+        n_force_pts = st.slider("Number of points", 8, 20, 12, 2, key="force_n")
+        rng_toy = np.random.RandomState(1)
+        X_toy = StandardScaler().fit_transform(rng_toy.randn(n_force_pts, 5))
+        P_toy, _ = compute_P_matrix(X_toy, perplexity=min(4, n_force_pts - 1))
+        Y_toy = rng_toy.randn(n_force_pts, 2) * 0.01
+        F_toy = compute_forces(P_toy, Y_toy)
+
+        fig_force = go.Figure()
+        fig_force.add_trace(go.Scatter(
+            x=Y_toy[:, 0], y=Y_toy[:, 1], mode="markers+text",
+            marker=dict(size=10, color=COLORS["B"]),
+            text=[str(i) for i in range(n_force_pts)],
+            textposition="top center", name="Points"))
+        # Draw arrows (negative gradient = direction of movement)
+        for i in range(len(Y_toy)):
+            scale = 0.3
+            fig_force.add_annotation(
+                x=Y_toy[i, 0] - F_toy[i, 0] * scale,
+                y=Y_toy[i, 1] - F_toy[i, 1] * scale,
+                ax=Y_toy[i, 0], ay=Y_toy[i, 1],
+                xref="x", yref="y", axref="x", ayref="y",
+                showarrow=True, arrowhead=2, arrowsize=1.5,
+                arrowcolor=COLORS["A"])
+
+        fig_force.update_layout(
+            title="Gradient Forces on a Toy System (arrows = negative grad direction)",
+            xaxis_title="y₁", yaxis_title="y₂",
+            height=500, template="plotly_white")
+        st.plotly_chart(fig_force, use_container_width=True)
+
+        st.markdown("""
+        <div class="info-panel">
+        Arrows show how each point would move in one gradient step.<br>
+        Points with high $p_{ij}$ (true neighbors) attract; others repel.
+        </div>
+        """, unsafe_allow_html=True)
+
 
 # ══════════════════════════════════════════════════════
-# TAB 3: PERPLEXITY
+# TAB 4: PERPLEXITY
 # ══════════════════════════════════════════════════════
 with tab_perplexity:
     st.markdown("## Perplexity: The Key Hyperparameter")
@@ -583,10 +727,19 @@ with tab_perplexity:
 
 
 # ══════════════════════════════════════════════════════
-# TAB 4: OPTIMIZATION
+# TAB 5: OPTIMIZATION
 # ══════════════════════════════════════════════════════
 with tab_optimization:
     st.markdown("## Optimization: Learning Rate & Convergence")
+
+    st.markdown("""
+    The gradient descent loop:
+    1. **Initialize** positions $\\{y_i\\}$ (random or PCA)
+    2. **Compute** all $q_{ij}$ from current positions
+    3. **Compute** gradient $\\partial \\mathcal{L} / \\partial y_i$
+    4. **Update** $y_i \\leftarrow y_i - \\eta \\nabla_{y_i}\\mathcal{L} + \\alpha \\Delta y_i^{(t-1)}$
+    5. **Repeat** 250–1000 iterations
+    """)
 
     st.markdown("""
     | Parameter | Typical Range | Effect |
@@ -679,7 +832,98 @@ with tab_optimization:
 
 
 # ══════════════════════════════════════════════════════
-# TAB 5: PITFALLS
+# TAB 6: PREPROCESSING
+# ══════════════════════════════════════════════════════
+with tab_preprocessing:
+    st.markdown("## Crucial Preprocessing: Scaling and PCA")
+
+    st.markdown("""
+    <div class="info-panel">
+    t-SNE relies on Euclidean distance $\\|x_i - x_j\\|$. Without preprocessing, features with
+    large variance dominate the distance computation.
+    </div>
+    """, unsafe_allow_html=True)
+
+    preproc_sub = st.radio("Topic:", ["Scaling Matters", "PCA Before t-SNE"],
+                            horizontal=True, key="preproc_sub")
+
+    if preproc_sub == "Scaling Matters":
+        st.markdown("### Step 1: Standardize (Z-Score)")
+        st.markdown("""
+        - Center each feature to mean 0
+        - Scale variance to 1
+        - Without this, one feature scaled 100× would dominate all distances
+        """)
+
+        X_scale, c_scale, _ = make_dataset("blobs", n=400, seed=42)
+
+        use_scaling = st.checkbox("Apply StandardScaler", value=False, key="scale_check")
+
+        X_mod = X_scale.copy()
+        X_mod[:, 0] *= 100  # Artificially inflate one feature
+
+        if use_scaling:
+            X_input = StandardScaler().fit_transform(X_mod)
+            label_scale = "With StandardScaler"
+        else:
+            X_input = X_mod
+            label_scale = "Without Scaling (feature 0 ×100)"
+
+        Y_scale = run_tsne(X_input, perplexity=30, seed=42)
+        fig_scale = plotly_embedding(Y_scale, c_scale,
+                                      title=f"t-SNE — {label_scale}",
+                                      continuous=False, height=500)
+        st.plotly_chart(fig_scale, use_container_width=True)
+
+        if not use_scaling:
+            st.warning("⚠️ Without scaling, the inflated feature dominates — clusters may merge or distort.")
+        else:
+            st.success("✅ With scaling, all features contribute equally to the distance computation.")
+
+    else:  # PCA Before t-SNE
+        st.markdown("### Step 2: PCA Dimensionality Reduction")
+        st.markdown("""
+        - Reduce to 30–50 principal components before t-SNE
+        - **Denoises:** removes useless variance
+        - **Accelerates:** reduces computation cost
+        - **Stabilizes:** provides structured initialization
+        """)
+
+        pca_dims_pp = st.slider("PCA dimensions", 5, 64, 30, 5, key="pp_pca_dims")
+
+        @st.cache_data(show_spinner="Running PCA + t-SNE on digits...")
+        def pca_before_tsne(pca_dims):
+            digits = load_digits()
+            X_d = StandardScaler().fit_transform(digits.data)
+            X_pca = PCA(n_components=pca_dims).fit_transform(X_d)
+            var_ret = PCA(n_components=pca_dims).fit(X_d).explained_variance_ratio_.sum()
+            t0 = perf_counter()
+            Y = TSNE(n_components=2, perplexity=30, learning_rate=200,
+                     max_iter=800, init="pca", random_state=42).fit_transform(X_pca)
+            dt = perf_counter() - t0
+            return Y, digits.target, var_ret, dt
+
+        Y_pp, targets_pp, var_pp, dt_pp = pca_before_tsne(pca_dims_pp)
+
+        mc1, mc2 = st.columns(2)
+        mc1.metric("Variance Retained", f"{var_pp:.1%}")
+        mc2.metric("Runtime", f"{dt_pp:.1f}s")
+
+        fig_pp = go.Figure()
+        for d in range(10):
+            mask = targets_pp == d
+            fig_pp.add_trace(go.Scatter(
+                x=Y_pp[mask, 0], y=Y_pp[mask, 1], mode="markers",
+                marker=dict(size=4, color=PLOTLY_DISCRETE[d], opacity=0.7),
+                name=f"Digit {d}"))
+        fig_pp.update_layout(
+            title=f"t-SNE on Digits (PCA → {pca_dims_pp}D, {var_pp:.1%} variance, {dt_pp:.1f}s)",
+            height=550, template="plotly_white")
+        st.plotly_chart(fig_pp, use_container_width=True)
+
+
+# ══════════════════════════════════════════════════════
+# TAB 7: PITFALLS
 # ══════════════════════════════════════════════════════
 with tab_pitfalls:
     st.markdown("## Common Pitfalls — What You Can and Cannot Trust")
@@ -696,6 +940,7 @@ with tab_pitfalls:
         "2: Global Distances Are Illusions",
         "3: Sizes & Densities Distorted",
         "4: Tearing Continuous Data",
+        "5: Cherry-Picking (Confirmation Bias)",
     ], horizontal=True, key="pitfall_choice")
 
     if pitfall_choice.startswith("1"):
@@ -724,6 +969,9 @@ with tab_pitfalls:
             fig_seeds.update_xaxes(showticklabels=False, row=1, col=i)
             fig_seeds.update_yaxes(showticklabels=False, row=1, col=i)
         st.plotly_chart(fig_seeds, use_container_width=True)
+
+        st.info("Each run produces a different rotation/reflection. "
+                "The AXES have no intrinsic meaning — only within-cluster structure matters.")
 
     elif pitfall_choice.startswith("2"):
         st.markdown("### Pitfall 2: Global Distances Are Illusions")
@@ -756,6 +1004,8 @@ with tab_pitfalls:
                               height=400, template="plotly_white")
         st.plotly_chart(fig_gd, use_container_width=True)
 
+        st.info("The relative ordering and magnitudes of inter-cluster distances change!")
+
     elif pitfall_choice.startswith("3"):
         st.markdown("### Pitfall 3: Sizes & Densities Are Distorted")
         st.markdown("The local bandwidth σ_i expands sparse regions and shrinks dense ones. "
@@ -786,7 +1036,10 @@ with tab_pitfalls:
         fig_dd.update_layout(height=400, template="plotly_white")
         st.plotly_chart(fig_dd, use_container_width=True)
 
-    else:  # Pitfall 4: Tearing
+        st.info("Reality: Dense cluster is tightly packed, sparse cluster is spread out. "
+                "t-SNE: Both clusters appear roughly the same size!")
+
+    elif pitfall_choice.startswith("4"):
         st.markdown("### Pitfall 4: Low Perplexity Tears Continuous Data")
         st.markdown("A 1-D gradient in 20D — low perplexity creates artificial islands.")
 
@@ -811,9 +1064,61 @@ with tab_pitfalls:
         else:
             st.success("✅ Moderate perplexity preserves the continuous nature.")
 
+    else:  # Pitfall 5: Cherry-Picking
+        st.markdown("### Pitfall 5: Cherry-Picking (Confirmation Bias)")
+        st.markdown("""
+        Because t-SNE has tunable hyperparameters and is stochastic, it is easy to re-run
+        until you see the pattern you *want* to see.
+
+        **Fix:** Sweep parameters; only trust structures stable across runs.
+        """)
+
+        st.markdown("""
+        <div class="warn-panel">
+        <b>The danger:</b> A researcher who "wants" to see 3 clusters can tune perplexity and seed
+        until the plot shows exactly 3 — even if the data has 4 or is continuous.
+        <br><br>
+        <b>The fix:</b> Run a systematic sweep of perplexity values and multiple seeds.
+        Only trust structures that appear consistently across all runs.
+        </div>
+        """, unsafe_allow_html=True)
+
+        X_cherry, c_cherry, _ = make_dataset("blobs", n=400, seed=42)
+        X_cherry = StandardScaler().fit_transform(X_cherry)
+
+        st.markdown("#### Stability Check: Same Data, Multiple Seeds & Perplexities")
+        perps_cherry = [5, 15, 30, 50]
+        seeds_cherry = [0, 7, 42]
+
+        fig_cherry = make_subplots(
+            rows=len(seeds_cherry), cols=len(perps_cherry),
+            subplot_titles=[f"Perp={p}, Seed={s}"
+                            for s in seeds_cherry for p in perps_cherry])
+        for row_idx, seed in enumerate(seeds_cherry):
+            for col_idx, perp in enumerate(perps_cherry):
+                Y_ch = run_tsne(X_cherry, perplexity=perp, seed=seed)
+                for c_val in np.unique(c_cherry):
+                    m = c_cherry == c_val
+                    clr = PLOTLY_DISCRETE[int(c_val) % len(PLOTLY_DISCRETE)]
+                    fig_cherry.add_trace(
+                        go.Scatter(x=Y_ch[m, 0], y=Y_ch[m, 1], mode="markers",
+                                   marker=dict(size=3, color=clr, opacity=0.7),
+                                   showlegend=False),
+                        row=row_idx + 1, col=col_idx + 1)
+        fig_cherry.update_layout(
+            title_text="Stability Check: Sweep Perplexity × Seeds",
+            height=700, template="plotly_white")
+        for r in range(1, len(seeds_cherry) + 1):
+            for c in range(1, len(perps_cherry) + 1):
+                fig_cherry.update_xaxes(showticklabels=False, row=r, col=c)
+                fig_cherry.update_yaxes(showticklabels=False, row=r, col=c)
+        st.plotly_chart(fig_cherry, use_container_width=True)
+
+        st.success("✅ If cluster structure is stable across all panels, it's likely real — not an artifact.")
+
 
 # ══════════════════════════════════════════════════════
-# TAB 6: VALIDATION
+# TAB 8: VALIDATION
 # ══════════════════════════════════════════════════════
 with tab_validation:
     st.markdown("## Validating Your Embedding")
@@ -824,6 +1129,7 @@ with tab_validation:
     | **kNN Overlap (Jaccard)** | Compare k-NN in high-D vs low-D | Local structure preservation |
     | **Trustworthiness** | `sklearn.manifold.trustworthiness` | How well low-D respects high-D neighbors |
     | **Stability** | Multiple seeds | Whether clusters are real or artifacts |
+    | **PCA Baseline** | Run PCA first | If PCA already separates, t-SNE is unnecessary |
     """)
 
     val_sub = st.radio("Validation method:", ["kNN Jaccard Overlap", "Trustworthiness Sweep"],
@@ -870,7 +1176,8 @@ with tab_validation:
             scores_, times_ = [], []
             for p in perps_:
                 t0 = perf_counter()
-                Y_ = run_tsne.__wrapped__(X_d_pca, perplexity=p, seed=0, lr=200, n_iter=800)
+                Y_ = TSNE(n_components=2, perplexity=p, learning_rate=200,
+                           max_iter=800, init="pca", random_state=0).fit_transform(X_d_pca)
                 dt_ = perf_counter() - t0
                 tw_ = trustworthiness(X_d_pca, Y_, n_neighbors=10)
                 scores_.append(tw_)
@@ -899,7 +1206,7 @@ with tab_validation:
 
 
 # ══════════════════════════════════════════════════════
-# TAB 7: COMPARISON
+# TAB 9: COMPARISON
 # ══════════════════════════════════════════════════════
 with tab_comparison:
     st.markdown("## Method Comparison: PCA / MDS / t-SNE / UMAP")
@@ -911,6 +1218,9 @@ with tab_comparison:
     | **MDS** | Nonlinear | Global distances | Moderate |
     | **t-SNE** | Nonlinear | Local neighborhoods | Moderate |
     | **UMAP** | Nonlinear | Local + some global | Fast |
+
+    > **Best practice:** Run both t-SNE and UMAP.
+    > If both find the same clusters, confidence is high.
     """)
 
     col_cmp1, col_cmp2 = st.columns([1, 4])
@@ -985,7 +1295,7 @@ with tab_comparison:
 
 
 # ══════════════════════════════════════════════════════
-# TAB 8: MNIST
+# TAB 10: MNIST
 # ══════════════════════════════════════════════════════
 with tab_mnist:
     st.markdown("## Real-World Application: Handwritten Digits (MNIST)")
@@ -1044,7 +1354,7 @@ with tab_mnist:
 
 
 # ══════════════════════════════════════════════════════
-# TAB 9: DASHBOARD
+# TAB 11: DASHBOARD
 # ══════════════════════════════════════════════════════
 with tab_dashboard:
     st.markdown("## Full Parameter Dashboard")
@@ -1110,6 +1420,122 @@ with tab_dashboard:
 
 
 # ══════════════════════════════════════════════════════
+# TAB 12: QUIZ
+# ══════════════════════════════════════════════════════
+with tab_quiz:
+    st.markdown("## Summary & Self-Check Quiz")
+
+    st.markdown("### The 5 Rules of Thumb for t-SNE")
+    st.markdown("""
+    | # | Rule | Details |
+    |---|------|---------|
+    | **1** | **Pre-process** | Scale your features to standard variance |
+    | **2** | **Denoise** | Run PCA first (reduce to 30–50 dims) |
+    | **3** | **Sweep** | Test multiple perplexity values (5 to 50) |
+    | **4** | **Verify** | Run multiple random seeds to check stability |
+    | **5** | **Interpret Locally** | Ignore global distances, cluster sizes, and axes |
+    """)
+
+    st.markdown("### Reproducibility Checklist")
+    st.markdown("""
+    When publishing a t-SNE plot, you **must** report:
+    scaling method, number of PCA dimensions, perplexity value, learning rate,
+    number of iterations, initialization method, random seed, and software version.
+    """)
+
+    st.markdown("""
+    <div class="success-panel">
+    <b>The Golden Takeaway:</b> t-SNE is a visualization tool for <b>hypothesis generation</b>,
+    not mathematical proof. Use it to <b>Explore</b>, <b>Hypothesize</b>, then <b>Validate</b>
+    with rigorous methods.
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("### The Standard Operating Procedure")
+    st.code("""
+1. Scale -> StandardScaler
+2. Reduce -> PCA to ~50 dims
+3. Initialize -> PCA init for t-SNE
+4. Sweep -> Perplexity {5, 10, 30, 50}
+5. Verify -> 3+ random seeds per setting
+6. Conclude -> Only trust patterns stable across all runs
+    """, language="text")
+
+    st.markdown("---")
+    st.markdown("### Self-Check Quiz")
+
+    questions = [
+        {
+            "q": "Q1: t-SNE preserves which type of structure?",
+            "options": ["a) Global distances", "b) Local neighborhoods", "c) Feature correlations"],
+            "answer": "b",
+        },
+        {
+            "q": "Q2: Why does t-SNE use a Student-t kernel in low-D instead of Gaussian?",
+            "options": ["a) It is faster to compute",
+                        "b) Heavy tails solve the crowding problem",
+                        "c) It preserves global geometry"],
+            "answer": "b",
+        },
+        {
+            "q": "Q3: What does perplexity control?",
+            "options": ["a) The learning rate",
+                        "b) The effective number of neighbors",
+                        "c) The number of output dimensions"],
+            "answer": "b",
+        },
+        {
+            "q": "Q4: Can you trust the distance between clusters in a t-SNE plot?",
+            "options": ["a) Yes, absolutely",
+                        "b) Only if perplexity > 30",
+                        "c) No — global distances are arbitrary"],
+            "answer": "c",
+        },
+        {
+            "q": "Q5: What should you always do before showing a t-SNE result?",
+            "options": ["a) Run it once with default parameters",
+                        "b) Sweep perplexity and check stability across seeds",
+                        "c) Apply t-SNE to the raw, unscaled data"],
+            "answer": "b",
+        },
+    ]
+
+    score = 0
+    user_answers = {}
+
+    for idx, item in enumerate(questions):
+        st.markdown(f"**{item['q']}**")
+        user_answers[idx] = st.radio(
+            f"Select your answer for Q{idx+1}:",
+            item["options"],
+            key=f"quiz_q{idx}",
+            label_visibility="collapsed",
+        )
+
+    if st.button("Check Answers", key="quiz_submit"):
+        st.markdown("---")
+        st.markdown("### Results")
+        for idx, item in enumerate(questions):
+            selected = user_answers[idx]
+            correct_letter = item["answer"]
+            correct_text = [o for o in item["options"] if o.startswith(correct_letter)][0]
+            if selected.startswith(correct_letter):
+                st.success(f"**Q{idx+1}:** ✅ Correct! {correct_text}")
+                score += 1
+            else:
+                st.error(f"**Q{idx+1}:** ❌ Your answer: {selected}  \nCorrect: {correct_text}")
+
+        st.markdown(f"### Score: **{score}/{len(questions)}**")
+        if score == len(questions):
+            st.balloons()
+            st.success("🎉 Perfect score! You understand t-SNE well.")
+        elif score >= 3:
+            st.info("Good job! Review the concepts you missed above.")
+        else:
+            st.warning("Consider reviewing the earlier tabs to strengthen your understanding.")
+
+
+# ══════════════════════════════════════════════════════
 # SIDEBAR SUMMARY
 # ══════════════════════════════════════════════════════
 with st.sidebar:
@@ -1132,4 +1558,5 @@ with st.sidebar:
     **References:**
     - van der Maaten & Hinton (2008)
     - [How to Use t-SNE Effectively](https://distill.pub/2016/misread-tsne/)
+    - McInnes et al. (2018) — UMAP
     """)
