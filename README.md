@@ -101,5 +101,4 @@ Each folder contains notebooks with detailed explanations and interactive exampl
 - `MaximumLikelihood/` - MLE theory
 - `PerformanceMetrics/` - Model evaluation
 - `MultiPleLinearRegression/` - MLR and regularization
-- `StreamlitApp/` - Interactive web applications
 
